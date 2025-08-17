@@ -172,7 +172,10 @@ function AdminPanel({ open, onClose, state, setState }) {
 
   async function approve(uid, email) {
     if (!isAdmin) return;
-    await setDoc(doc(db, 'entitlements', uid), { email, granted: true, updatedAt: serverTimestamp() }, { merge: true });
+    const lower = (email || '').toLowerCase();
+    // Keep legacy UID entitlement, and add email-based entitlement used by download API
+    await setDoc(doc(db, 'entitlements', uid), { email: lower, granted: true, updatedAt: serverTimestamp() }, { merge: true });
+    await setDoc(doc(db, 'entitlements_by_email', lower), { email: lower, granted: true, updatedAt: serverTimestamp() }, { merge: true });
     await updateDoc(doc(db, 'requests', uid), { status: 'approved', updatedAt: serverTimestamp() });
   }
 
@@ -282,8 +285,7 @@ export default function App() {
   const [err, setErr] = useState("");
   const [adminOpen, setAdminOpen] = useState(false);
   const [adminMode, setAdminMode] = useState(false);
-  const [user, setUser] = useState(null);
-  const [entitled, setEntitled] = useState(false);
+  const [user, setUser] = useState(null); // used only for Admin panel via secret path
   const [paymentLink, setPaymentLink] = useState("");
 
   const validEmail = /[^@\s]+@[^@\s]+\.[^@\s]+/.test(email);
@@ -309,25 +311,18 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  useEffect(() => {
-    if (!user) { setEntitled(false); return; }
-    const unsub = onSnapshot(doc(db, 'entitlements', user.uid), (snap) => {
-      setEntitled(snap.exists());
-    });
-    return () => unsub();
-  }, [user]);
+  // No buyer entitlement tracking via auth in Option B
 
   async function handleRealCheckout() {
     setBusy(true);
     setErr("");
     try {
-      // Require sign in so order ties to user
-      if (!user) await signInWithPopup(auth, googleProvider);
       const amount = state.course.priceINR || 0;
       const resp = await fetch(`${backendBase}/api/create-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uid: auth.currentUser.uid, email: email || auth.currentUser.email, amountINR: amount }),
+        // Use a pseudo customer id since we don't use auth for buyers
+        body: JSON.stringify({ uid: `email_${(email || '').toLowerCase()}` , email: (email || '').toLowerCase(), amountINR: amount }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data?.error || 'Create order failed');
@@ -363,13 +358,9 @@ export default function App() {
 
   async function downloadCourse() {
     try {
-      if (!user) await signInWithPopup(auth, googleProvider);
-      const idToken = await auth.currentUser.getIdToken();
-      const resp = await fetch(`${backendBase}/api/download`, {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${idToken}` },
-        redirect: 'follow'
-      });
+      const e = (email || '').toLowerCase().trim();
+      if (!e) throw new Error('Enter your email first');
+      const resp = await fetch(`${backendBase}/api/download?email=${encodeURIComponent(e)}`, { method: 'GET', redirect: 'follow' });
       // If server responds with redirect, browser may not auto-follow via fetch
       // In that case, derive final URL and navigate window to it
       if (resp.redirected) {
@@ -447,31 +438,17 @@ export default function App() {
               >
                 Pay now
               </button>
-              {!user ? (
-                <button onClick={() => signInWithPopup(auth, googleProvider)} className="rounded-2xl border px-6 py-3">Sign in</button>
-              ) : (
-                <button onClick={() => signOut(auth)} className="rounded-2xl border px-6 py-3">Sign out</button>
-              )}
             </div>
  
           </div>
 
           {err && <div className="text-sm text-red-600">{err}</div>}
           <div className="rounded-2xl border bg-white p-4 text-sm space-y-2">
-            {!entitled ? (
-              <div className="space-y-2">
-                <div>After paying, click below to request access. An admin will approve quickly.</div>
-                <div className="flex gap-2">
-                  <button onClick={requestAccess} className="rounded-xl border px-4 py-2">I paid — Request access</button>
-                </div>
-                <div className="text-xs text-neutral-500">Note: You must be signed in with Google using the email you provided during checkout.</div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <div>Access granted. You can download your course now.</div>
-                <button onClick={downloadCourse} className="rounded-xl bg-black text-white px-4 py-2">Download ZIP</button>
-              </div>
-            )}
+            <div className="space-y-2">
+              <div>After payment is successful, click below to download your course. Use the same email you paid with.</div>
+              <button onClick={downloadCourse} className="rounded-xl bg-black text-white px-4 py-2">Download ZIP</button>
+              <div className="text-xs text-neutral-500">If it says “No entitlement for this email”, wait a few seconds for payment confirmation and try again.</div>
+            </div>
           </div>
         </section>
 

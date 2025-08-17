@@ -5,21 +5,18 @@ module.exports = async (req, res) => {
   const origin = req.headers.origin || '*';
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    // Verify Firebase ID token
-    const authz = req.headers.authorization || '';
-    const token = authz.startsWith('Bearer ') ? authz.slice(7) : null;
-    if (!token) return res.status(401).json({ error: 'Missing token' });
-    const decoded = await admin.auth().verifyIdToken(String(token));
-
-    // Check entitlement
+    // Check entitlement by email from query
+    const urlObj = new URL(req.url, `https://${req.headers.host}`);
+    const email = (urlObj.searchParams.get('email') || '').toLowerCase();
+    if (!email) return res.status(400).json({ error: 'Missing email' });
     const db = admin.firestore();
-    const ent = await db.collection('entitlements').doc(decoded.uid).get();
-    if (!ent.exists) return res.status(403).json({ error: 'No entitlement' });
+    const ent = await db.collection('entitlements_by_email').doc(email).get();
+    if (!ent.exists) return res.status(403).json({ error: 'No entitlement for this email' });
 
     // Read current blob URL from settings
     const settings = await db.collection('settings').doc('global').get();

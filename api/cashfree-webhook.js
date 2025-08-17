@@ -47,14 +47,17 @@ module.exports = async (req, res) => {
     const paid = ['PAID', 'SUCCESS', 'SUCCESSFUL'].includes(String(verifyData.order_status || '').toUpperCase());
     if (!paid) return res.json({ ok: true, ignored: true });
 
-    // Extract uid we embedded in order_id: order_<uid>_<timestamp>
-    const parts = String(orderId).split('_');
-    const uid = parts.length >= 3 ? parts.slice(1, parts.length - 1).join('_') : null;
-    if (!uid) return res.status(400).json({ error: 'Cannot parse uid from order id' });
+    // Determine buyer email from verified order
+    const email = (verifyData?.customer_details?.customer_email
+      || verifyData?.customer?.customer_email
+      || order?.customer_details?.customer_email
+      || order?.customer_email
+      || '').toLowerCase();
+    if (!email) return res.status(400).json({ error: 'No customer email on order' });
 
     const db = admin.firestore();
-    const entRef = db.collection('entitlements').doc(uid);
-    await entRef.set({ granted: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    const entRef = db.collection('entitlements_by_email').doc(email);
+    await entRef.set({ email, granted: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
 
     return res.json({ ok: true });
   } catch (e) {
