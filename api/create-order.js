@@ -18,6 +18,8 @@ export default async function handler(req, res) {
     if (!uid || !email || !amountINR) return res.status(400).json({ error: 'Missing fields' });
     const phoneDigits = String(phone || '').replace(/\D/g, '');
     if (!phoneDigits) return res.status(400).json({ error: 'Missing phone' });
+    const amt = Number(String(amountINR).replace(/[^0-9.]/g, ''));
+    if (!Number.isFinite(amt) || amt <= 0) return res.status(400).json({ error: 'invalid_amount' });
 
     const appId = process.env.CASHFREE_APP_ID;
     const secret = process.env.CASHFREE_SECRET;
@@ -27,7 +29,9 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'cashfree_env_missing' });
     }
 
-    const orderId = `order_${uid}_${Date.now()}`;
+    // Cashfree order_id must be alphanumeric with limited symbols and length constraints.
+    // Avoid embedding email; generate a compact unique id instead.
+    const orderId = `order_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
     const base = mode === 'TEST' ? 'https://sandbox.cashfree.com' : 'https://api.cashfree.com';
     const resp = await fetchFn(`${base}/pg/orders`, {
@@ -40,7 +44,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         order_id: orderId,
-        order_amount: Number(amountINR),
+        order_amount: amt,
         order_currency: 'INR',
         customer_details: {
           customer_id: uid,
