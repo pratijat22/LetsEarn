@@ -1,7 +1,6 @@
-// Firebase client initialization for admin auth and storage access (client-side)
+// Firebase client initialization for auth and Firestore (client-side)
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { getStorage } from 'firebase/storage';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -17,5 +16,4 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
-export const storage = getStorage(app);
 export const db = getFirestore(app);

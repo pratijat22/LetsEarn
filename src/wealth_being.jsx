@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import logoUrl from '../lets-earn-logo.svg';
-import { auth, googleProvider, storage, db } from './firebase';
+import { auth, googleProvider, db } from './firebase';
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
-import { ref as sRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { upload } from '@vercel/blob/client';
 import { doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp, collection, query, orderBy } from 'firebase/firestore';
 
 // Minimal single-file React app for a course paywall landing page
@@ -153,14 +153,21 @@ function AdminPanel({ open, onClose, state, setState }) {
 
   async function startUpload() {
     if (!isAdmin || !selectedFile) return;
-    const storageRef = sRef(storage, 'courses/current.zip');
-    const task = uploadBytesResumable(storageRef, selectedFile, { contentType: 'application/zip' });
-    task.on('state_changed', (s) => {
-      const pct = Math.round((s.bytesTransferred / s.totalBytes) * 100);
-      setUploadPct(pct);
-    });
-    await task;
-    alert('Upload complete');
+    try {
+      setUploadPct(1);
+      const idToken = (await auth.currentUser.getIdToken());
+      const blob = await upload(`courses/${selectedFile.name}`, selectedFile, {
+        access: 'private',
+        contentType: selectedFile.type || 'application/zip',
+        handleUploadUrl: `${backendBase}/api/blob-upload`,
+        clientPayload: idToken, // validated server-side
+        multipart: true,
+        onUploadProgress: ({ percentage }) => setUploadPct(Math.max(1, Math.round(percentage))),
+      });
+      alert('Upload complete');
+    } catch (e) {
+      alert(`Upload failed: ${e?.message || e}`);
+    }
   }
 
   async function approve(uid, email) {
@@ -356,10 +363,30 @@ export default function App() {
 
   async function downloadCourse() {
     try {
-      const url = await getDownloadURL(sRef(storage, 'courses/current.zip'));
-      window.location.href = url;
+      if (!user) await signInWithPopup(auth, googleProvider);
+      const idToken = await auth.currentUser.getIdToken();
+      const resp = await fetch(`${backendBase}/api/download`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${idToken}` },
+        redirect: 'follow'
+      });
+      // If server responds with redirect, browser may not auto-follow via fetch
+      // In that case, derive final URL and navigate window to it
+      if (resp.redirected) {
+        window.location.href = resp.url;
+      } else if (resp.status === 302) {
+        const loc = resp.headers.get('Location');
+        if (loc) window.location.href = loc; else throw new Error('No download URL');
+      } else if (resp.ok) {
+        // Some platforms may return OK+JSON with a url
+        const data = await resp.json().catch(() => null);
+        if (data?.url) window.location.href = data.url; else throw new Error('Unexpected download response');
+      } else {
+        const errText = await resp.text().catch(() => 'Download failed');
+        throw new Error(errText);
+      }
     } catch (e) {
-      setErr('Download not available yet.');
+      setErr(e?.message || 'Download not available yet.');
     }
   }
 
