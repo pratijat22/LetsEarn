@@ -1,5 +1,3 @@
-const { admin } = require('./_firebaseAdmin');
-
 // Vercel Serverless Function: POST /api/create-order
 // Body: { uid, email, amountINR }
 // Returns { orderId, paymentSessionId }
@@ -18,6 +16,10 @@ module.exports = async (req, res) => {
     const appId = process.env.CASHFREE_APP_ID;
     const secret = process.env.CASHFREE_SECRET;
     const mode = process.env.CASHFREE_MODE || 'PROD'; // PROD or TEST
+    if (!appId || !secret) {
+      console.error('Missing Cashfree envs');
+      return res.status(500).json({ error: 'cashfree_env_missing' });
+    }
 
     const orderId = `order_${uid}_${Date.now()}`;
 
@@ -45,7 +47,7 @@ module.exports = async (req, res) => {
       })
     });
 
-    const data = await resp.json();
+    const data = await resp.json().catch(() => ({}));
     if (!resp.ok) {
       return res.status(400).json({ error: 'Cashfree order create failed', detail: data });
     }

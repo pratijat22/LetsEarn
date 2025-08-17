@@ -103,7 +103,12 @@ function AdminPanel({ open, onClose, state, setState }) {
   const [paymentLink, setPaymentLink] = useState("");
   const [requests, setRequests] = useState([]);
 
-  useEffect(() => onAuthStateChanged(auth, setUser), []);
+  // Attach auth state listener only when admin panel is open
+  useEffect(() => {
+    if (!open) return;
+    const unsub = onAuthStateChanged(auth, setUser);
+    return () => unsub();
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -289,7 +294,7 @@ export default function App() {
   const [paymentLink, setPaymentLink] = useState("");
 
   const validEmail = /[^@\s]+@[^@\s]+\.[^@\s]+/.test(email);
-  const backendBase = import.meta.env.VITE_BACKEND_URL || '';
+  const backendBase = import.meta.env.VITE_BACKEND_URL || 'https://lets-earn.vercel.app';
 
   // Enable admin mode only when visiting the secret path.
   useEffect(() => {
@@ -301,7 +306,11 @@ export default function App() {
     } catch {}
   }, []);
 
-  useEffect(() => onAuthStateChanged(auth, setUser), []);
+  useEffect(() => {
+    if (!adminMode) return;
+    const unsub = onAuthStateChanged(auth, setUser);
+    return () => unsub();
+  }, [adminMode]);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'settings', 'global'), (snap) => {
@@ -317,15 +326,19 @@ export default function App() {
     setBusy(true);
     setErr("");
     try {
+      if (!backendBase) {
+        throw new Error('Backend URL is not configured. Set VITE_BACKEND_URL.');
+      }
       const amount = state.course.priceINR || 0;
-      const resp = await fetch(`${backendBase}/api/create-order`, {
+      const url = `${backendBase}/api/create-order`;
+      const resp = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // Use a pseudo customer id since we don't use auth for buyers
         body: JSON.stringify({ uid: `email_${(email || '').toLowerCase()}` , email: (email || '').toLowerCase(), amountINR: amount }),
       });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data?.error || 'Create order failed');
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(`${data?.error || 'Create order failed'} @ ${url}`);
 
       // Use Cashfree Checkout JS if available; else fallback to returning to hosted page
       if (window.Cashfree) {
@@ -337,23 +350,15 @@ export default function App() {
         window.open(`https://www.cashfree.com/pg/view/pay/${data.paymentSessionId}`, '_blank');
       }
     } catch (e) {
-      setErr(e.message || "Checkout error");
+      setErr((e && e.message) ? e.message : `Checkout error @ ${backendBase}`);
     } finally {
       setBusy(false);
     }
   }
 
   async function requestAccess() {
-    if (!user) {
-      await signInWithPopup(auth, googleProvider);
-    }
-    await setDoc(doc(db, 'requests', auth.currentUser.uid), {
-      uid: auth.currentUser.uid,
-      email: auth.currentUser.email,
-      status: 'pending',
-      createdAt: serverTimestamp(),
-    }, { merge: true });
-    alert('Request sent. You will get access once approved.');
+    // Deprecated in Option B; keeping no-op to avoid accidental auth usage
+    alert('Request flow is no longer required. After payment, use your email to download.');
   }
 
   async function downloadCourse() {

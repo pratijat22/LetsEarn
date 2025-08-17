@@ -15,7 +15,9 @@ module.exports = async (req, res) => {
 
     // We require the client to pass a Firebase ID token via clientPayload
     // validate it inside onBeforeGenerateToken using firebase-admin
-    const request = new Request('https://lets-earn.vercel.app/api/blob-upload', {
+    const proto = (req.headers['x-forwarded-proto'] || 'https');
+    const host = req.headers.host;
+    const request = new Request(`${proto}://${host}${req.url}`, {
       method: 'POST',
       headers: new Headers({ 'content-type': 'application/json' }),
       body: JSON.stringify(body || {}),
