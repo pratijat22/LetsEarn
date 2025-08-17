@@ -1,7 +1,11 @@
 // Vercel Serverless Function: POST /api/create-order
+// Ensure fetch exists in Node <18 (fallback to node-fetch)
+const fetchFn = (typeof fetch !== 'undefined')
+  ? fetch
+  : ((...args) => import('node-fetch').then(({ default: f }) => f(...args)));
 // Body: { uid, email, amountINR }
 // Returns { orderId, paymentSessionId }
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   const origin = req.headers.origin || '*';
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -24,7 +28,7 @@ module.exports = async (req, res) => {
     const orderId = `order_${uid}_${Date.now()}`;
 
     const base = mode === 'TEST' ? 'https://sandbox.cashfree.com' : 'https://api.cashfree.com';
-    const resp = await fetch(`${base}/pg/orders`, {
+    const resp = await fetchFn(`${base}/pg/orders`, {
       method: 'POST',
       headers: {
         'x-client-id': appId,
@@ -58,3 +62,5 @@ module.exports = async (req, res) => {
     return res.status(500).json({ error: 'server_error' });
   }
 };
+
+export const config = { runtime: 'nodejs18.x' };
