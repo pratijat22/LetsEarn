@@ -14,8 +14,10 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { uid, email, amountINR } = req.body || {};
+    const { uid, email, amountINR, phone } = req.body || {};
     if (!uid || !email || !amountINR) return res.status(400).json({ error: 'Missing fields' });
+    const phoneDigits = String(phone || '').replace(/\D/g, '');
+    if (!phoneDigits) return res.status(400).json({ error: 'Missing phone' });
 
     const appId = process.env.CASHFREE_APP_ID;
     const secret = process.env.CASHFREE_SECRET;
@@ -43,6 +45,7 @@ export default async function handler(req, res) {
         customer_details: {
           customer_id: uid,
           customer_email: email,
+          customer_phone: phoneDigits,
         },
         order_meta: {
           return_url: req.headers.origin ? `${req.headers.origin}/?order_id={order_id}` : undefined,

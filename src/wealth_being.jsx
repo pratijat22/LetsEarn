@@ -285,6 +285,7 @@ export default function App() {
   const cashfreeReady = useCashfreeSdk();
   const [state, setState] = useAdminState();
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [err, setErr] = useState("");
@@ -294,6 +295,8 @@ export default function App() {
   const [paymentLink, setPaymentLink] = useState("");
 
   const validEmail = /[^@\s]+@[^@\s]+\.[^@\s]+/.test(email);
+  const phoneDigits = String(phone || '').replace(/\D/g, '');
+  const validPhone = phoneDigits.length === 10; // basic validation for 10-digit India numbers
   const backendBase = import.meta.env.VITE_BACKEND_URL || 'https://lets-earn.vercel.app';
 
   // Enable admin mode only when visiting the secret path.
@@ -330,12 +333,16 @@ export default function App() {
         throw new Error('Backend URL is not configured. Set VITE_BACKEND_URL.');
       }
       const amount = state.course.priceINR || 0;
+      const e = (email || '').toLowerCase();
+      const p = phoneDigits;
+      if (!validEmail) throw new Error('Enter a valid email');
+      if (!validPhone) throw new Error('Enter a valid 10-digit phone');
       const url = `${backendBase}/api/create-order`;
       const resp = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // Use a pseudo customer id since we don't use auth for buyers
-        body: JSON.stringify({ uid: `email_${(email || '').toLowerCase()}` , email: (email || '').toLowerCase(), amountINR: amount }),
+        body: JSON.stringify({ uid: `email_${e}`, email: e, phone: p, amountINR: amount }),
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) throw new Error(`${data?.error || 'Create order failed'} @ ${url}`);
@@ -426,17 +433,24 @@ export default function App() {
             </div>
           </div>
 
-          <div className="mt-2 grid gap-3 md:grid-cols-[1fr_auto]">
+          <div className="mt-2 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
             <input
               className="w-full rounded-2xl border px-4 py-3"
               type="email"
-              placeholder="Enter your email to receive the course"
+              placeholder="Enter your email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
+            <input
+              className="w-full rounded-2xl border px-4 py-3"
+              type="tel"
+              placeholder="Phone (10 digits)"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
             <div className="flex gap-2">
               <button
-                disabled={!validEmail || busy}
+                disabled={!validEmail || !validPhone || busy}
                 onClick={handleRealCheckout}
                 className="rounded-2xl bg-amber-500 px-6 py-3 font-semibold text-black disabled:opacity-50"
                 title="Open payment link"
@@ -444,7 +458,10 @@ export default function App() {
                 Pay now
               </button>
             </div>
- 
+          </div>
+
+          <div className="text-xs text-neutral-600">
+            We use your email and phone only for payment and delivering your course.
           </div>
 
           {err && <div className="text-sm text-red-600">{err}</div>}
