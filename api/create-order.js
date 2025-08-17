@@ -63,4 +63,4 @@ export default async function handler(req, res) {
   }
 };
 
-export const config = { runtime: 'nodejs18.x' };
+export const config = { runtime: 'nodejs' };
