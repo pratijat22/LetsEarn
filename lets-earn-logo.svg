@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1200" viewBox="0 0 1200 1200">
+  <title>Let's Earn Logo - Transparent</title>
+  <desc>Yellow LE monogram with "LET'S EARN" wordmark. Transparent background.</desc>
+
+  <!-- Colors -->
+  <defs>
+    <style type="text/css"><![CDATA[
+      .yellow { fill: #FFD100; }
+      .wordmark { font-family: "Poppins", "Montserrat", Arial, Helvetica, sans-serif; font-weight: 800; font-size: 140px; letter-spacing: 4px; }
+    ]]></style>
+  </defs>
+
+  <!-- LE Monogram -->
+  <g id="monogram" class="yellow">
+    <!-- L -->
+    <rect x="150" y="150" width="120" height="700" />
+    <rect x="150" y="730" width="700" height="120" />
+    <!-- E -->
+    <rect x="510" y="150" width="340" height="120" />
+    <rect x="510" y="430" width="240" height="120" />
+    <rect x="510" y="730" width="340" height="120" />
+  </g>
+
+  <!-- Wordmark -->
+  <text id="wordmark" x="150" y="1090" class="wordmark yellow">LET'S EARN</text>
+</svg>

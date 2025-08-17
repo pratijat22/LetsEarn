@@ -1,0 +1,42 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Admin list doc: /config/admins { allowedEmails: ["a@b.com", ...] }
+    match /config/admins {
+      allow read: if true;
+      // Bootstrap: allow first create only if doc doesn't exist
+      allow create: if isSignedIn() && !exists(/databases/$(database)/documents/config/admins);
+      allow update, delete: if isSignedIn() &&
+        (request.auth.token.email in get(/databases/$(database)/documents/config/admins).data.allowedEmails);
+    }
+
+    // Entitlements: one doc per user id. Controls download access.
+    match /entitlements/{userId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      // Only admins can grant/update entitlements
+      allow create, update: if isSignedIn() &&
+        (request.auth.token.email in get(/databases/$(database)/documents/config/admins).data.allowedEmails);
+      allow delete: if false;
+    }
+
+    // Purchase requests: created by buyer after payment; admins review and approve
+    match /requests/{userId} {
+      allow read: if isSignedIn() &&
+        ((request.auth.uid == userId) ||
+          (request.auth.token.email in get(/databases/$(database)/documents/config/admins).data.allowedEmails));
+      allow create, update: if isSignedIn() && request.auth.uid == userId;
+      allow delete: if false;
+    }
+
+    // Global settings (e.g., paymentLink). Writable only by admins.
+    match /settings/global {
+      allow read: if true;
+      allow write: if isSignedIn() &&
+        (request.auth.token.email in get(/databases/$(database)/documents/config/admins).data.allowedEmails);
+    }
+  }
+}
