@@ -29,6 +29,9 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'cashfree_env_missing' });
     }
 
+    // Sanitize customer_id to allowed set: alphanumeric, underscore, hyphen
+    const customerId = String(uid || '').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 64);
+
     // Cashfree order_id must be alphanumeric with limited symbols and length constraints.
     // Avoid embedding email; generate a compact unique id instead.
     const orderId = `order_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -47,7 +50,7 @@ export default async function handler(req, res) {
         order_amount: amt,
         order_currency: 'INR',
         customer_details: {
-          customer_id: uid,
+          customer_id: customerId,
           customer_email: email,
           customer_phone: phoneDigits,
         },
